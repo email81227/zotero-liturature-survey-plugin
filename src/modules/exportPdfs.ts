@@ -136,40 +136,22 @@ export class ExportPdfsFactory {
 
   private static async pickExportFolder(): Promise<string | false> {
     const lastPath = getPref("exportPdfPath") as string;
+    // Toolkit FilePicker delegates to Zotero's chrome://zotero/content/modules/filePicker.mjs,
+    // which handles the Firefox 140 BrowsingContext requirement that broke
+    // raw nsIFilePicker.init(window, ...) calls in Zotero 9.
+    const result = await new ztoolkit.FilePicker(
+      getString("export-pdfs-pick-folder"),
+      "folder",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      lastPath || undefined,
+    ).open();
 
-    const fp = ztoolkit
-      .getGlobal("Components")
-      .classes[
-        "@mozilla.org/filepicker;1"
-      ].createInstance(ztoolkit.getGlobal("Components").interfaces.nsIFilePicker);
-
-    const win = ztoolkit.getGlobal("Zotero").getMainWindow();
-    fp.init(win, getString("export-pdfs-pick-folder"), fp.modeGetFolder);
-
-    if (lastPath) {
-      try {
-        fp.displayDirectory = ztoolkit
-          .getGlobal("Components")
-          .classes[
-            "@mozilla.org/file/local;1"
-          ].createInstance(ztoolkit.getGlobal("Components").interfaces.nsIFile);
-        fp.displayDirectory.initWithPath(lastPath);
-      } catch {
-        // Ignore if last path is invalid
-      }
-    }
-
-    const result = await new Promise<number>((resolve) => {
-      fp.open(resolve);
-    });
-
-    if (result !== fp.returnOK) {
-      return false;
-    }
-
-    const selectedPath = fp.file.path;
-    setPref("exportPdfPath", selectedPath);
-    return selectedPath;
+    if (!result) return false;
+    setPref("exportPdfPath", result);
+    return result;
   }
 
   // ── Collection traversal ────────────────────────────────────
